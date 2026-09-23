@@ -18,6 +18,7 @@ ctk.set_default_color_theme("blue")
 
 COURSE_FIELDS = ["fields", "name,id,alternatelink"]
 DEFAULT_EMAIL_DOMAIN = "@qos.edu.hk"
+DEFAULT_COURSE_TEACHER = "gc.mod@qos.edu.hk"
 
 
 def normalize_email(value):
@@ -373,7 +374,10 @@ class GAMClassroomGUI(ctk.CTk):
                     return_code, output = self.runner.execute(args)
                     course_id = extract_course_id(output)
                     if return_code == 0 and course_id:
-                        self.runner.add_users(course_id, "teacher", teachers[1:])
+                        additional_teachers = [teacher for teacher in teachers[1:] if teacher.casefold() != DEFAULT_COURSE_TEACHER]
+                        if teachers[0].casefold() != DEFAULT_COURSE_TEACHER:
+                            additional_teachers.append(DEFAULT_COURSE_TEACHER)
+                        self.runner.add_users(course_id, "teacher", additional_teachers)
                         for group in groups:
                             self.runner.add_group_members(course_id, group)
                     elif return_code == 0:
