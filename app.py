@@ -142,6 +142,27 @@ class GAMRunner:
             return True
         return self.execute_csv(output, ["gam", "course", course_id, "add", "student", "~email"])
 
+    def sync_group_members(self, course_id, group_emails):
+        members = []
+        for group_email in group_emails:
+            return_code, output = self.execute(
+                ["print", "group-members", "group", group_email, "recursive", "fields", "email"],
+                display_output=False,
+            )
+            if return_code != 0:
+                return False
+            group_members = extract_emails_from_gam_csv(output)
+            self.app.log(f"Group {group_email} recursive 找到 {len(group_members)} 位成員。")
+            members.extend(group_members)
+        members = list(dict.fromkeys(members))
+        self.app.log(f"合併後共 {len(members)} 位不重複成員。")
+        if not members:
+            self.app.log("⚠️ Group 沒有成員，略過同步，避免清空課程學生。")
+            return False
+        return self.run([
+            "course", course_id, "sync", "students", "users", ",".join(members),
+        ])
+
 
 class ClassroomRow:
     def __init__(self, parent):
@@ -510,10 +531,12 @@ class GAMClassroomGUI(ctk.CTk):
                 self.run_async(["course", course_value, "sync", "students", "file", source_value], "成員同步程序已完成。")
                 return
             groups = split_emails(source_value)
-            self.run_async(
-                ["course", course_value, "sync", "students", "groups", ",".join(groups)],
-                "成員同步程序已完成。",
-            )
+
+            def worker():
+                self.runner.sync_group_members(course_value, groups)
+                self.after(0, lambda: messagebox.showinfo("完成", "成員同步程序已完成。"))
+
+            threading.Thread(target=worker, daemon=True).start()
 
         self.action_button(panel, "⟳ 同步成員", sync)
 
